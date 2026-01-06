@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Staff Result Entry</title>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+    }
+    input, select, button {
+      padding: 8px;
+      margin: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Staff - Enter Student Result</h1>
+
+  <label>Register Number:</label>
+  <input type="text" id="regno" required>
+  <span id="studentName" style="font-weight: bold;"></span>
+  <br>
+  <label>Semester:</label>
+  <select id="semester">
+    <option value="">Select</option>
+    <option value="1">1</option>
+    <option value="2">2</option>
+  </select>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Subject Code</th>
+        <th>Subject Name</th>
+        <th>Grade</th>
+        <th>Result (auto)</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="subjectTable">
+      <!-- Rows will be auto-filled -->
+    </tbody>
+  </table>
+
+  <br>
+  <button onclick="submitResult()">Submit Result</button>
+
+  <script>
+    const subjectTable = document.getElementById("subjectTable");
+
+    const subjectList = {
+      "1": [
+        { code: "MA101", name: "Mathematics I" },
+        { code: "PH101", name: "Physics" },
+        { code: "CY101", name: "Chemistry" }
+      ],
+      "2": [
+        { code: "MA102", name: "Mathematics II" },
+        { code: "CS101", name: "C Programming" },
+        { code: "EE101", name: "Electrical Engg" }
+      ]
+    };
+
+    document.getElementById("semester").addEventListener("change", () => {
+      const semester = document.getElementById("semester").value;
+      subjectTable.innerHTML = "";
+
+      if (subjectList[semester]) {
+        subjectList[semester].forEach(sub => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td><input type="text" class="code" value="${sub.code}" readonly></td>
+            <td><input type="text" class="name" value="${sub.name}" readonly></td>
+            <td>
+              <select class="grade" onchange="updateResult(this)">
+                <option value="">Select</option>
+                <option>A</option>
+                <option>B</option>
+                <option>C</option>
+                <option>RA</option>
+              </select>
+            </td>
+            <td class="status">-</td>
+            <td><button onclick="this.closest('tr').remove()">Delete</button></td>
+          `;
+          subjectTable.appendChild(row);
+        });
+      }
+    });
+
+    function updateResult(selectEl) {
+      const grade = selectEl.value;
+      const statusCell = selectEl.parentElement.nextElementSibling;
+      statusCell.textContent = (grade === "RA") ? "Fail" : "Pass";
+    }
+
+    document.getElementById("regno").addEventListener("blur", async () => {
+      const regno = document.getElementById("regno").value;
+      if (!regno) return;
+
+      try {
+        const res = await fetch(`http://localhost:5000/student/${regno}`);
+        const data = await res.json();
+        if (data.status) {
+          document.getElementById("studentName").textContent = " - " + data.name;
+        } else {
+          document.getElementById("studentName").textContent = "";
+          alert("Student not found");
+        }
+      } catch (err) {
+        console.error("Error fetching name", err);
+        document.getElementById("studentName").textContent = "";
+      }
+    });
+
+    async function submitResult() {
+      const regno = document.getElementById("regno").value;
+      const semester = document.getElementById("semester").value;
+
+      if (!regno || !semester) {
+        alert("Please fill Register Number and Semester.");
+        return;
+      }
+
+      const rows = document.querySelectorAll("#subjectTable tr");
+      const subjects = [];
+
+      rows.forEach(row => {
+        const code = row.querySelector(".code").value;
+        const name = row.querySelector(".name").value;
+        const grade = row.querySelector(".grade").value;
+        const result = (grade === "RA") ? "Fail" : "Pass";
+
+        if (code && name && grade) {
+          subjects.push({ subjectCode: code, subjectName: name, grade, result });
+        }
+      });
+
+      if (subjects.length === 0) {
+        alert("Please add at least one subject.");
+        return;
+      }
+
+      try {
+        const res = await fetch("http://localhost:5000/staff/result", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ regno, semester, subjects })
+        });
+
+        const data = await res.json();
+        alert(data.message);
+
+        document.getElementById("regno").value = "";
+        document.getElementById("studentName").textContent = "";
+        document.getElementById("semester").value = "";
+        subjectTable.innerHTML = "";
+
+      } catch (err) {
+        console.error(err);
+        alert("Server error. Try again.");
+      }
+    }
+  </script>
+</body>
+</html>
